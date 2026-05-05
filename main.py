@@ -4,180 +4,140 @@ import random
 import string
 import json
 import os
-from datetime import datetime
 
 class PasswordGeneratorApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Random Password Generator")
         self.root.geometry("600x500")
-        self.root.resizable(False, False)
         
-        # Файл для сохранения истории
-        self.history_file = "password_history.json"
-        self.password_history = self.load_history()
+        # История паролей
+        self.history = []
+        self.load_history()
         
         self.setup_ui()
     
     def setup_ui(self):
-        # Основная рамка
-        main_frame = ttk.Frame(self.root, padding=20)
-        main_frame.pack(fill="both", expand=True)
-        
-        # Заголовок
-        ttk.Label(main_frame, text="Генератор случайных паролей", 
-                  font=("Helvetica", 16, "bold")).pack(pady=10)
-        
-        # Рамка настроек
-        settings_frame = ttk.LabelFrame(main_frame, text="Настройки пароля", padding=10)
-        settings_frame.pack(fill="x", pady=10)
-        
-        # Ползунок длины пароля
-        length_frame = ttk.Frame(settings_frame)
-        length_frame.pack(fill="x", pady=5)
-        ttk.Label(length_frame, text="Длина пароля (8-32):").pack(side="left")
-        
+        # Длина пароля
+        length_frame = ttk.Frame(self.root)
+        length_frame.pack(pady=10, fill="x", padx=20)
+        ttk.Label(length_frame, text="Длина пароля:").pack(side="left")
         self.length_var = tk.IntVar(value=12)
-        self.length_slider = ttk.Scale(length_frame, from_=8, to=32,
-                                           variable=self.length_var, orient="horizontal")
-        self.length_slider.pack(side="left", fill="x", expand=True, padx=10)
-        
+        self.length_scale = ttk.Scale(
+            length_frame,
+            from_=4, to=64,
+            variable=self.length_var,
+            orient="horizontal"
+        )
+        self.length_scale.pack(side="left", fill="x", expand=True, padx=10)
         self.length_label = ttk.Label(length_frame, text="12")
-        self.length_label.pack(side="right")
-        self.length_slider.config(command=self.update_length_label)
+        self.length_label.pack(side="left")
+        self.length_scale.config(command=self.update_length_display)
         
-        # Чекбоксы типов символов
-        chars_frame = ttk.Frame(settings_frame)
-        chars_frame.pack(fill="x", pady=10)
+        # Опции символов
+        options_frame = ttk.LabelFrame(self.root, text="Типы символов")
+        options_frame.pack(pady=10, fill="x", padx=20)
         
         self.use_letters = tk.BooleanVar(value=True)
         self.use_digits = tk.BooleanVar(value=True)
         self.use_special = tk.BooleanVar(value=False)
         
-        ttk.Checkbutton(chars_frame, text="Буквы (a-z, A-Z)",
-                       variable=self.use_letters).pack(anchor="w")
-        ttk.Checkbutton(chars_frame, text="Цифры (0-9)",
-                       variable=self.use_digits).pack(anchor="w")
-        ttk.Checkbutton(chars_frame, text="Спецсимволы (!@#$%)",
-                       variable=self.use_special).pack(anchor="w")
+        ttk.Checkbutton(options_frame, text="Буквы (a‑z, A‑Z)", variable=self.use_letters).pack(anchor="w")
+        ttk.Checkbutton(options_frame, text="Цифры (0‑9)", variable=self.use_digits).pack(anchor="w")
+        ttk.Checkbutton(options_frame, text="Спецсимволы (!@#$%)", variable=self.use_special).pack(anchor="w")
         
         # Кнопка генерации
-        generate_btn = ttk.Button(main_frame, text="Сгенерировать пароль",
-                               command=self.generate_password)
+        generate_btn = ttk.Button(self.root, text="Сгенерировать пароль", command=self.generate_password)
         generate_btn.pack(pady=10)
         
         # Поле вывода пароля
-        result_frame = ttk.LabelFrame(main_frame, text="Сгенерированный пароль", padding=10)
-        result_frame.pack(fill="x", pady=10)
-        
         self.password_var = tk.StringVar()
-        password_entry = ttk.Entry(result_frame, textvariable=self.password_var,
-                           font=("Courier", 12), state="readonly")
-        password_entry.pack(fill="x", pady=5)
-        
-        copy_btn = ttk.Button(result_frame, text="Копировать в буфер",
-                         command=self.copy_to_clipboard)
-        copy_btn.pack(pady=5)
+        password_entry = ttk.Entry(self.root, textvariable=self.password_var, font=("Courier", 12), justify="center")
+        password_entry.pack(pady=5, fill="x", padx=20)
         
         # Таблица истории
-        history_frame = ttk.LabelFrame(main_frame, text="История паролей", padding=10)
-        history_frame.pack(fill="both", expand=True, pady=10)
+        history_frame = ttk.LabelFrame(self.root, text="История паролей")
+        history_frame.pack(pady=10, fill="both", expand=True, padx=20)
         
-        columns = ("ID", "Пароль", "Длина", "Типы символов", "Дата создания")
+        columns = ("№", "Пароль", "Длина", "Типы символов")
         self.history_tree = ttk.Treeview(history_frame, columns=columns, show="headings", height=8)
-        
         for col in columns:
             self.history_tree.heading(col, text=col)
             self.history_tree.column(col, width=100)
+        self.history_tree.pack(fill="both", expand=True)
         
-        scrollbar = ttk.Scrollbar(history_frame, orient="vertical", command=self.history_tree.yview)
-        self.history_tree.configure(yscrollcommand=scrollbar.set)
-        
-        self.history_tree.pack(side="left", fill="both", expand=True)
-        scrollbar.pack(side="right", fill="y")
-        
-        # Обновляем таблицу истории
-        self.update_history_table()
+        # Кнопки очистки истории
+        clear_btn = ttk.Button(history_frame, text="Очистить историю", command=self.clear_history)
+        clear_btn.pack(pady=5)
     
-    def update_length_label(self, value):
-        self.length_label.config(text=f"{int(float(value))}")
+    def update_length_display(self, value):
+        self.length_label.config(text=str(int(float(value))))
     
     def generate_password(self):
         length = self.length_var.get()
-        
-        # Проверка минимальной длины
-        if length < 8:
-            messagebox.showerror("Ошибка", "Минимальная длина пароля — 8 символов")
+        if length < 4:
+            messagebox.showerror("Ошибка", "Минимальная длина пароля — 4 символа")
+            return
+        if length > 64:
+            messagebox.showerror("Ошибка", "Максимальная длина пароля — 64 символа")
             return
         
-        # Формирование набора символов
         chars = ""
         if self.use_letters.get():
             chars += string.ascii_letters
         if self.use_digits.get():
             chars += string.digits
         if self.use_special.get():
-            chars += "!@#$%&*"
+            chars += "!@#$%^&*"
         
-        # Проверка выбора хотя бы одного типа символов
         if not chars:
             messagebox.showerror("Ошибка", "Выберите хотя бы один тип символов")
             return
         
-        # Генерация пароля
         password = ''.join(random.choice(chars) for _ in range(length))
         self.password_var.set(password)
         
-        # Добавление в историю
+        # Добавляем в историю
         char_types = []
         if self.use_letters.get(): char_types.append("Буквы")
         if self.use_digits.get(): char_types.append("Цифры")
-        if self.use_special.get(): char_types.append("Спецсимволы")
-        
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        if self.use_special.get(): char_types.append("Спец")
+        self.add_to_history(password, length, ", ".join(char_types))
+    
+    def add_to_history(self, password, length, char_types):
         entry = {
-            "id": len(self.password_history) + 1,
             "password": password,
             "length": length,
-            "char_types": ", ".join(char_types),
-            "timestamp": timestamp
+            "char_types": char_types
         }
-        self.password_history.append(entry)
-        self.save_history()
+        self.history.append(entry)
         self.update_history_table()
-    
-    def copy_to_clipboard(self):
-        password = self.password_var.get()
-        if password:
-            self.root.clipboard_clear()
-            self.root.clipboard_append(password)
-            messagebox.showinfo("Успех", "Пароль скопирован в буфер обмена")
-        else:
-            messagebox.showwarning("Предупреждение", "Сначала сгенерируйте пароль")
-    
-    def save_history(self):
-        with open(self.history_file, 'w', encoding='utf-8') as f:
-            json.dump(self.password_history, f, ensure_ascii=False, indent=2)
-    
-    def load_history(self):
-        if os.path.exists(self.history_file):
-            try:
-                with open(self.history_file, 'r', encoding='utf-8') as f:
-                    return json.load(f)
-            except:
-                return []
-        return []
+        self.save_history()
     
     def update_history_table(self):
-        # Очистка таблицы
         for item in self.history_tree.get_children():
             self.history_tree.delete(item)
-        
-        # Заполнение таблицы
-        for entry in reversed(self.password_history[-20:]):  # Последние 20 записей
-            self.history_tree.insert("", "end", values=(
-                entry["id"],
-                entry["password"],
-                entry["length"],
-                entry["char_types"],
-                entry["timestamp"]
+        for i, entry in enumerate(self.history[-10:], 1):  # Последние 10 записей
+            self.history_tree.insert("", "end", values=(i, entry["password"], entry["length"], entry["char_types"]))
+    
+    def save_history(self):
+        with open("password_history.json", "w", encoding="utf-8") as f:
+            json.dump(self.history, f, indent=2, ensure_ascii=False)
+    
+    def load_history(self):
+        if os.path.exists("password_history.json"):
+            try:
+                with open("password_history.json", "r", encoding="utf-8") as f:
+                    self.history = json.load(f)
+            except:
+                self.history = []
+    
+    def clear_history(self):
+        self.history = []
+        self.update_history_table()
+        self.save_history()
+
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = PasswordGeneratorApp(root)
+    root.mainloop()
