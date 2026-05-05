@@ -1,6 +1,6 @@
 # Random Password Generator
 
-**Автор:** [Хаджимурат Отаров]
+**Автор:** [Отаров Хаджимурат]
 
 ## Описание
 
@@ -21,4 +21,4 @@
 1. Убедитесь, что у вас установлен Python 3.6+
 2. Скачайте или клонируйте репозиторий:
    ```bash
-   git clone [URL вашего ре
+   git clone [https://github.com/KhadjiMEO/Random-Password-Generator-]
